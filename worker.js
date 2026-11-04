@@ -393,8 +393,8 @@ async function streamMegaFile(request, node, downloadUrl) {
   stream.pipeTo(writable).catch(() => {});
 
   const headers = new Headers({
-    "Content-Type": "application/octet-stream",
-    "Content-Disposition": `attachment; filename="${encodeURIComponent(node.name)}"`,
+    "Content-Type": ({"mp4":"video/mp4","mkv":"video/webm","webm":"video/webm","mov":"video/quicktime","mp3":"audio/mpeg","m4a":"audio/mp4","wav":"audio/wav","ogg":"audio/ogg","flac":"audio/flac","jpg":"image/jpeg","jpeg":"image/jpeg","png":"image/png","gif":"image/gif","webp":"image/webp","svg":"image/svg+xml","pdf":"application/pdf","txt":"text/plain; charset=utf-8"}[(node.name||"").split(".").pop().toLowerCase()]||"application/octet-stream"),
+    "Content-Disposition": `inline; filename="${encodeURIComponent(node.name)}"`,
     "Accept-Ranges": "bytes",
     "Content-Length": expectedSize.toString()
   });
