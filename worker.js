@@ -1019,94 +1019,112 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
-const M3U_UI_INJECT = `
-<style>
-  #m3uBar { display:flex; gap:8px; margin:14px 0; padding:10px; background:#18181b; border:1px solid #27272a; border-radius:8px; flex-wrap:wrap; align-items:center; }
-  .m3u-btn { background:#2563eb; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
-  .m3u-btn.secondary { background:#27272a; border:1px solid #3f3f46; }
-  .m3u-status { color:#a1a1aa; font-size:12px; margin-left:auto; }
-  .vlc-mini { background:#ea580c; color:#fff; padding:4px 8px; border-radius:5px; font-size:11px; text-decoration:none; margin-left:6px; font-weight:600; }
-</style>
-
-<script>
-(function() {
-  function getMediaLinks() {
-    const items = [];
-    document.querySelectorAll('a[href]').forEach(a => {
-      const href = a.href;
-      if (!href || href.startsWith("javascript:") || href.endsWith("#")) return;
-      const row = a.closest(".file") || a.closest("li") || a.parentElement;
-      const nameEl = row ? (row.querySelector(".name") || a) : a;
-      const name = (nameEl.textContent || "").trim() || "Stream";
-      if (href.includes("/stream") || href.includes("dl=") || href.includes("mega.nz") || /\\.(mp4|mkv|webm|mov|mp3|m4a|flac|wav|jpg|png)/i.test(name)) {
-        items.push({ name, url: href, el: a });
-      }
-    });
-    return items;
-  }
-
-  function buildM3UContent(items) {
-    let m3u = "#EXTM3U\\n";
-    items.forEach(item => {
-      m3u += "#EXTINF:-1," + item.name.replace(/[\\r\\n]+/g, " ") + "\\n" + item.url + "\\n";
-    });
-    return m3u;
-  }
-
-  function injectM3UBar() {
-    const target = document.getElementById("fileList") || document.querySelector(".card") || document.body;
-    if (!document.getElementById("m3uBar")) {
-      const bar = document.createElement("div");
-      bar.id = "m3uBar";
-      bar.innerHTML = \`
-        <button class="m3u-btn" id="dlM3U">📥 Download .M3U Playlist</button>
-        <button class="m3u-btn secondary" id="copyLinks">📋 Copy All Stream URLs</button>
-        <span class="m3u-status" id="m3uCount">Load a MEGA link first</span>
-      \`;
-      target.parentNode ? target.parentNode.insertBefore(bar, target) : document.body.prepend(bar);
-
-      document.getElementById("dlM3U").onclick = () => {
-        const items = getMediaLinks();
-        if (!items.length) return alert("Load a MEGA folder or file first so links appear on the page!");
-        const blob = new Blob([buildM3UContent(items)], { type: "audio/x-mpegurl" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "mega-playlist.m3u";
-        a.click();
-      };
-
-      document.getElementById("copyLinks").onclick = () => {
-        const items = getMediaLinks();
-        if (!items.length) return alert("Load a MEGA folder or file first!");
-        navigator.clipboard.writeText(items.map(i => i.url).join("\\n"));
-        document.getElementById("copyLinks").textContent = "✅ Copied " + items.length + " Links!";
-        setTimeout(() => document.getElementById("copyLinks").textContent = "📋 Copy All Stream URLs", 2000);
-      };
-    }
-
-    const items = getMediaLinks();
-    const countEl = document.getElementById("m3uCount");
-    if (countEl) {
-      countEl.textContent = items.length ? (items.length + " streamable files ready") : "Waiting for files...";
-    }
-
-    // Add direct "VLC" launch button next to each file
-    items.forEach(item => {
-      if (!item.el.dataset.vlcAdded) {
-        item.el.dataset.vlcAdded = "1";
-        const vlcBtn = document.createElement("a");
-        vlcBtn.className = "vlc-mini";
-        vlcBtn.textContent = "▶ VLC";
-        vlcBtn.href = "vlc://" + item.url;
-        item.el.after(vlcBtn);
-      }
-    });
-  }
-
-  setInterval(injectM3UBar, 800);
-})();
-</script>
-`;
+const M3U_UI_INJECT = [
+  '<style>',
+  '#m3uBar { position:sticky; top:0; z-index:9999; display:flex; gap:8px; margin:12px auto; max-width:900px; padding:10px 14px; background:#18181b; border:1px solid #3b82f6; border-radius:8px; flex-wrap:wrap; align-items:center; font-family:sans-serif; box-shadow:0 4px 12px rgba(0,0,0,0.5); }',
+  '.m3u-btn { background:#2563eb; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; }',
+  '.m3u-btn.sec { background:#27272a; border:1px solid #3f3f46; }',
+  '.m3u-status { color:#e4e4e7; font-size:12px; margin-left:auto; font-weight:500; }',
+  '.vlc-mini { background:#ea580c; color:#fff; padding:5px 10px; border-radius:6px; font-size:12px; text-decoration:none; margin-left:6px; font-weight:600; display:inline-block; }',
+  '</style>',
+  '<script>',
+  '(function() {',
+  '  var NL = String.fromCharCode(10);',
+  '  function getMediaLinks() {',
+  '    var items = [];',
+  '    var seen = {};',
+  '    var links = document.querySelectorAll("a[href]");',
+  '    for (var i = 0; i < links.length; i++) {',
+  '      var a = links[i];',
+  '      if (a.classList.contains("vlc-mini")) continue;',
+  '      var href = a.href;',
+  '      if (!href || href.indexOf("http") !== 0) continue;',
+  '      if (href === location.href || href === location.origin + "/") continue;',
+  '      if (href.indexOf("github.com") !== -1 || href.indexOf("cloudflare.com") !== -1) continue;',
+  '      if (seen[href]) continue;',
+  '      seen[href] = true;',
+  '      var row = a.parentElement ? a.parentElement.parentElement : a.parentElement;',
+  '      var name = "";',
+  '      if (row) {',
+  '        var nameNode = row.querySelector(".name, .filename, strong, b, span");',
+  '        if (nameNode && nameNode !== a) name = (nameNode.textContent || "").trim();',
+  '      }',
+  '      if (!name || name.toLowerCase() === "download") {',
+  '        try {',
+  '          var u = new URL(href);',
+  '          name = decodeURIComponent(u.searchParams.get("name") || u.searchParams.get("file") || u.pathname.split("/").pop() || "");',
+  '        } catch (e) {}',
+  '      }',
+  '      if (!name || name.toLowerCase() === "download") name = "MEGA_Stream_" + (items.length + 1);',
+  '      items.push({ name: name, url: href, el: a });',
+  '    }',
+  '    return items;',
+  '  }',
+  '  function initBar() {',
+  '    if (!document.getElementById("m3uBar") && document.body) {',
+  '      var bar = document.createElement("div");',
+  '      bar.id = "m3uBar";',
+  '      var btnDl = document.createElement("button");',
+  '      btnDl.className = "m3u-btn";',
+  '      btnDl.textContent = "Download .M3U Playlist";',
+  '      var btnCopy = document.createElement("button");',
+  '      btnCopy.className = "m3u-btn sec";',
+  '      btnCopy.textContent = "Copy All URLs";',
+  '      var status = document.createElement("span");',
+  '      status.className = "m3u-status";',
+  '      status.id = "m3uCount";',
+  '      status.textContent = "Paste a MEGA link below";',
+  '      bar.appendChild(btnDl);',
+  '      bar.appendChild(btnCopy);',
+  '      bar.appendChild(status);',
+  '      document.body.insertBefore(bar, document.body.firstChild);',
+  '      btnDl.onclick = function() {',
+  '        var list = getMediaLinks();',
+  '        if (!list.length) return alert("No file links found yet! Load a MEGA folder or file first.");',
+  '        var m3u = "#EXTM3U" + NL;',
+  '        for (var i = 0; i < list.length; i++) {',
+  '          var cleanTitle = list[i].name.split(NL).join(" ");',
+  '          m3u += "#EXTINF:-1," + cleanTitle + NL + list[i].url + NL;',
+  '        }',
+  '        var blob = new Blob([m3u], { type: "audio/x-mpegurl" });',
+  '        var tempA = document.createElement("a");',
+  '        tempA.href = URL.createObjectURL(blob);',
+  '        tempA.download = "mega-playlist.m3u";',
+  '        document.body.appendChild(tempA);',
+  '        tempA.click();',
+  '        tempA.remove();',
+  '      };',
+  '      btnCopy.onclick = function() {',
+  '        var list = getMediaLinks();',
+  '        if (!list.length) return alert("No file links found yet! Load a MEGA folder or file first.");',
+  '        var urls = [];',
+  '        for (var i = 0; i < list.length; i++) urls.push(list[i].url);',
+  '        navigator.clipboard.writeText(urls.join(NL));',
+  '        btnCopy.textContent = "Copied " + list.length + " URLs!";',
+  '        setTimeout(function() { btnCopy.textContent = "Copy All URLs"; }, 2000);',
+  '      };',
+  '    }',
+  '    var currentItems = getMediaLinks();',
+  '    var countEl = document.getElementById("m3uCount");',
+  '    if (countEl) {',
+  '      countEl.textContent = currentItems.length ? (currentItems.length + " file(s) ready for .M3U") : "Paste a MEGA link below";',
+  '    }',
+  '    for (var j = 0; j < currentItems.length; j++) {',
+  '      var linkEl = currentItems[j].el;',
+  '      if (!linkEl.dataset.vlcAdded) {',
+  '        linkEl.dataset.vlcAdded = "1";',
+  '        var vlcBtn = document.createElement("a");',
+  '        vlcBtn.className = "vlc-mini";',
+  '        vlcBtn.textContent = "VLC";',
+  '        vlcBtn.href = "vlc://" + currentItems[j].url;',
+  '        linkEl.after(vlcBtn);',
+  '      }',
+  '    }',
+  '  }',
+  '  setInterval(initBar, 800);',
+  '})();',
+  '</script>'
+].join("\n");
 
 export default {
   async fetch(request, env, ctx) {
