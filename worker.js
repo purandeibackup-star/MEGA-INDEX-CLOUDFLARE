@@ -5,7 +5,7 @@
 
 const publicTreeCache = {};
 
-export default {
+const megaOriginalWorker = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
