@@ -1019,3 +1019,44 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+// Image & Video Thumbnail Injector
+addEventListener('fetch', event => {
+  event.respondWith(handleMediaPreviews(event.request));
+});
+async function handleMediaPreviews(request) {
+  let response = await fetch(request);
+  let contentType = response.headers.get("Content-Type") || "";
+  if (contentType.includes("text/html")) {
+    let html = await response.text();
+    let injected = html + `<script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll('a[href]').forEach(a => {
+          a.removeAttribute("download");
+          let t = (a.textContent || "").trim();
+          let href = a.href;
+          if (!href || href.startsWith("javascript:")) return;
+
+          // Add image thumbnail
+          if (/\\.(jpg|jpeg|png|gif|webp)$/i.test(t) && !a.querySelector("img")) {
+            let img = document.createElement("img");
+            img.src = href;
+            img.loading = "lazy";
+            img.style = "width:50px;height:50px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle;";
+            a.prepend(img);
+          }
+          // Add inline video player preview
+          else if (/\\.(mp4|mkv|webm|mov)$/i.test(t) && !a.parentElement.querySelector("video")) {
+            let vid = document.createElement("video");
+            vid.src = href + "#t=0.5";
+            vid.preload = "metadata";
+            vid.controls = true;
+            vid.style = "width:120px;height:70px;object-fit:cover;border-radius:6px;margin-right:8px;vertical-align:middle;background:#000;display:inline-block;";
+            a.before(vid);
+          }
+        });
+      });
+    </script>`;
+    return new Response(injected, { status: response.status, headers: response.headers });
+  }
+  return response;
+}
