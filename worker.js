@@ -1019,188 +1019,91 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
-const UI_INJECT = `
+const M3U_UI_INJECT = `
 <style>
-  .mega-toolbar { display:flex; gap:8px; margin:12px 0; flex-wrap:wrap; align-items:center; }
-  .mega-toolbar select, .mega-toolbar button { background:#18181b; color:#e4e4e7; border:1px solid #27272a; padding:7px 12px; border-radius:6px; font-size:12px; cursor:pointer; }
-  .mega-toolbar button:hover { border-color:#3b82f6; }
-  #fileList.mega-grid { display:grid !important; grid-template-columns:repeat(auto-fill, minmax(145px, 1fr)); gap:10px; }
-  #fileList.mega-grid .file { flex-direction:column !important; align-items:stretch !important; text-align:center; padding:10px !important; height:auto !important; }
-  #fileList.mega-grid .meta { flex-direction:column !important; align-items:center !important; gap:6px !important; margin-bottom:8px; }
-  #fileList.mega-grid .name { white-space:normal !important; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-size:12px !important; }
-  .mega-thumb { width:48px; height:48px; object-fit:cover; border-radius:6px; background:#000; flex-shrink:0; border:1px solid #27272a; }
-  #fileList.mega-grid .mega-thumb { width:100% !important; height:100px !important; margin-bottom:4px; }
-  
-  /* MEGA Lightbox Modal (Prev / Next Viewer) */
-  #megaModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93); z-index:99999; flex-direction:column; justify-content:space-between; padding:14px; box-sizing:border-box; }
-  #megaModal.open { display:flex; }
-  .mm-top { display:flex; justify-content:space-between; align-items:center; color:#fff; font-size:14px; gap:10px; }
-  .mm-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; font-weight:600; }
-  .mm-btn { background:#27272a; color:#fff; border:1px solid #3f3f46; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:13px; text-decoration:none; }
-  .mm-body { flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden; margin:10px 0; }
-  .mm-body video, .mm-body img { max-width:100%; max-height:78vh; border-radius:8px; background:#000; }
-  .mm-nav { display:flex; justify-content:center; align-items:center; gap:16px; }
+  #m3uBar { display:flex; gap:8px; margin:14px 0; padding:10px; background:#18181b; border:1px solid #27272a; border-radius:8px; flex-wrap:wrap; align-items:center; }
+  .m3u-btn { background:#2563eb; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
+  .m3u-btn.secondary { background:#27272a; border:1px solid #3f3f46; }
+  .m3u-status { color:#a1a1aa; font-size:12px; margin-left:auto; }
+  .vlc-mini { background:#ea580c; color:#fff; padding:4px 8px; border-radius:5px; font-size:11px; text-decoration:none; margin-left:6px; font-weight:600; }
 </style>
-
-<div id="megaModal">
-  <div class="mm-top">
-    <div class="mm-title" id="mmTitle">File</div>
-    <a id="mmDownload" class="mm-btn" href="#" target="_blank">Download / Raw</a>
-    <button class="mm-btn" id="mmClose">✕ Close</button>
-  </div>
-  <div class="mm-body" id="mmBody"></div>
-  <div class="mm-nav">
-    <button class="mm-btn" id="mmPrev">◀ Prev File</button>
-    <span id="mmCounter" style="color:#a1a1aa;font-size:13px;">1 / 1</span>
-    <button class="mm-btn" id="mmNext">Next File ▶</button>
-  </div>
-</div>
 
 <script>
 (function() {
-  let mediaItems = [];
-  let currentIndex = 0;
-  let isGrid = false;
-
-  const modal = document.getElementById("megaModal");
-  const mmBody = document.getElementById("mmBody");
-  const mmTitle = document.getElementById("mmTitle");
-  const mmCounter = document.getElementById("mmCounter");
-  const mmDownload = document.getElementById("mmDownload");
-
-  function openViewer(idx) {
-    if (idx < 0 || idx >= mediaItems.length) return;
-    currentIndex = idx;
-    const item = mediaItems[currentIndex];
-    mmTitle.textContent = item.name;
-    mmCounter.textContent = (currentIndex + 1) + " / " + mediaItems.length;
-    mmDownload.href = item.url;
-    mmBody.innerHTML = "";
-
-    if (item.type === "video") {
-      const v = document.createElement("video");
-      v.src = item.url;
-      v.controls = true;
-      v.autoplay = false; // Video stays PAUSED until you press play!
-      v.preload = "metadata";
-      mmBody.appendChild(v);
-    } else if (item.type === "audio") {
-      const a = document.createElement("audio");
-      a.src = item.url;
-      a.controls = true;
-      a.autoplay = false;
-      mmBody.appendChild(a);
-    } else if (item.type === "image") {
-      const img = document.createElement("img");
-      img.src = item.url;
-      mmBody.appendChild(img);
-    }
-    modal.classList.add("open");
+  function getMediaLinks() {
+    const items = [];
+    document.querySelectorAll('a[href]').forEach(a => {
+      const href = a.href;
+      if (!href || href.startsWith("javascript:") || href.endsWith("#")) return;
+      const row = a.closest(".file") || a.closest("li") || a.parentElement;
+      const nameEl = row ? (row.querySelector(".name") || a) : a;
+      const name = (nameEl.textContent || "").trim() || "Stream";
+      if (href.includes("/stream") || href.includes("dl=") || href.includes("mega.nz") || /\\.(mp4|mkv|webm|mov|mp3|m4a|flac|wav|jpg|png)/i.test(name)) {
+        items.push({ name, url: href, el: a });
+      }
+    });
+    return items;
   }
 
-  document.getElementById("mmClose").onclick = () => {
-    mmBody.innerHTML = "";
-    modal.classList.remove("open");
-  };
-  document.getElementById("mmPrev").onclick = () => {
-    if (currentIndex > 0) openViewer(currentIndex - 1);
-  };
-  document.getElementById("mmNext").onclick = () => {
-    if (currentIndex < mediaItems.length - 1) openViewer(currentIndex + 1);
-  };
+  function buildM3UContent(items) {
+    let m3u = "#EXTM3U\\n";
+    items.forEach(item => {
+      m3u += "#EXTINF:-1," + item.name.replace(/[\\r\\n]+/g, " ") + "\\n" + item.url + "\\n";
+    });
+    return m3u;
+  }
 
-  function enhanceFileList() {
-    const fileList = document.getElementById("fileList");
-    if (!fileList) return;
-
-    // Insert Sort & Grid Toolbar once
-    if (!document.getElementById("megaToolbar")) {
+  function injectM3UBar() {
+    const target = document.getElementById("fileList") || document.querySelector(".card") || document.body;
+    if (!document.getElementById("m3uBar")) {
       const bar = document.createElement("div");
-      bar.id = "megaToolbar";
-      bar.className = "mega-toolbar";
+      bar.id = "m3uBar";
       bar.innerHTML = \`
-        <select id="megaSortSelect">
-          <option value="">Sort: Default</option>
-          <option value="az">Name: A → Z</option>
-          <option value="za">Name: Z → A</option>
-        </select>
-        <button id="megaGridBtn">Switch to Grid View</button>
+        <button class="m3u-btn" id="dlM3U">📥 Download .M3U Playlist</button>
+        <button class="m3u-btn secondary" id="copyLinks">📋 Copy All Stream URLs</button>
+        <span class="m3u-status" id="m3uCount">Load a MEGA link first</span>
       \`;
-      fileList.parentNode.insertBefore(bar, fileList);
+      target.parentNode ? target.parentNode.insertBefore(bar, target) : document.body.prepend(bar);
 
-      document.getElementById("megaGridBtn").onclick = (e) => {
-        isGrid = !isGrid;
-        fileList.classList.toggle("mega-grid", isGrid);
-        e.target.textContent = isGrid ? "Switch to List View" : "Switch to Grid View";
+      document.getElementById("dlM3U").onclick = () => {
+        const items = getMediaLinks();
+        if (!items.length) return alert("Load a MEGA folder or file first so links appear on the page!");
+        const blob = new Blob([buildM3UContent(items)], { type: "audio/x-mpegurl" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "mega-playlist.m3u";
+        a.click();
       };
 
-      document.getElementById("megaSortSelect").onchange = (e) => {
-        const mode = e.target.value;
-        const rows = Array.from(fileList.querySelectorAll(".file"));
-        rows.sort((a, b) => {
-          const na = (a.querySelector(".name")?.textContent || "").trim().toLowerCase();
-          const nb = (b.querySelector(".name")?.textContent || "").trim().toLowerCase();
-          if (mode === "az") return na.localeCompare(nb);
-          if (mode === "za") return nb.localeCompare(na);
-          return 0;
-        });
-        rows.forEach(r => fileList.appendChild(r));
+      document.getElementById("copyLinks").onclick = () => {
+        const items = getMediaLinks();
+        if (!items.length) return alert("Load a MEGA folder or file first!");
+        navigator.clipboard.writeText(items.map(i => i.url).join("\\n"));
+        document.getElementById("copyLinks").textContent = "✅ Copied " + items.length + " Links!";
+        setTimeout(() => document.getElementById("copyLinks").textContent = "📋 Copy All Stream URLs", 2000);
       };
     }
 
-    mediaItems = [];
-    const rows = fileList.querySelectorAll(".file");
-    rows.forEach(row => {
-      const nameEl = row.querySelector(".name");
-      const btn = row.querySelector("a.btn");
-      if (!nameEl || !btn || !btn.href) return;
+    const items = getMediaLinks();
+    const countEl = document.getElementById("m3uCount");
+    if (countEl) {
+      countEl.textContent = items.length ? (items.length + " streamable files ready") : "Waiting for files...";
+    }
 
-      const name = nameEl.textContent.trim();
-      const url = btn.href;
-      const isImg = /\\.(jpg|jpeg|png|gif|webp)$/i.test(name);
-      const isVid = /\\.(mp4|mkv|webm|mov)$/i.test(name);
-      const isAud = /\\.(mp3|m4a|wav|ogg|flac)$/i.test(name);
-
-      if (isImg || isVid || isAud) {
-        const idx = mediaItems.length;
-        const type = isImg ? "image" : isVid ? "video" : "audio";
-        mediaItems.push({ name, url, type });
-
-        if (!row.dataset.enhanced) {
-          row.dataset.enhanced = "1";
-          const meta = row.querySelector(".meta");
-
-          // Add visual thumbnail for images & videos
-          if (isImg) {
-            const thumb = document.createElement("img");
-            thumb.src = url;
-            thumb.loading = "lazy";
-            thumb.className = "mega-thumb";
-            meta.prepend(thumb);
-          } else if (isVid) {
-            const thumbVid = document.createElement("video");
-            thumbVid.src = url + "#t=1.0";
-            thumbVid.preload = "metadata";
-            thumbVid.muted = true;
-            thumbVid.playsInline = true;
-            thumbVid.className = "mega-thumb";
-            meta.prepend(thumbVid);
-          }
-
-          // Intercept click to open MEGA Lightbox with Prev/Next and paused video
-          btn.textContent = isVid || isAud ? "▶ Open" : "👁 View";
-          btn.onclick = (e) => {
-            e.preventDefault();
-            openViewer(idx);
-          };
-        }
+    // Add direct "VLC" launch button next to each file
+    items.forEach(item => {
+      if (!item.el.dataset.vlcAdded) {
+        item.el.dataset.vlcAdded = "1";
+        const vlcBtn = document.createElement("a");
+        vlcBtn.className = "vlc-mini";
+        vlcBtn.textContent = "▶ VLC";
+        vlcBtn.href = "vlc://" + item.url;
+        item.el.after(vlcBtn);
       }
     });
   }
 
-  // Watch #fileList so thumbnails & controls appear as soon as MEGA finishes loading a folder
-  const observer = new MutationObserver(() => enhanceFileList());
-  observer.observe(document.body, { childList: true, subtree: true });
+  setInterval(injectM3UBar, 800);
 })();
 </script>
 `;
@@ -1210,12 +1113,13 @@ export default {
     const response = await megaOriginalWorker.fetch(request, env, ctx);
     const contentType = response.headers.get("Content-Type") || "";
     if (contentType.includes("text/html")) {
-      let html = await response.text();
-      html = html.replace("</body>", UI_INJECT + "</body>");
-      return new Response(html, {
-        status: response.status,
-        headers: response.headers
-      });
+      return new HTMLRewriter()
+        .on("body", {
+          element(el) {
+            el.append(M3U_UI_INJECT, { html: true });
+          }
+        })
+        .transform(response);
     }
     return response;
   }
